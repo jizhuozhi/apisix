@@ -82,7 +82,7 @@ local function match_metadata_filters(inst, filters)
     local metadata = inst.metadata or {}
     for _, f in ipairs(filters) do
         local key = f.key
-        local allowed_vals = f.allowed_vals
+        local allowed_vals = f.value
         local val = metadata[key]
         local matched = false
         for _, allowed in ipairs(allowed_vals) do
