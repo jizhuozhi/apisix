@@ -798,9 +798,10 @@ routes:
       service_name: mock-service
       type: roundrobin
       discovery_type: consul
-      metadata_match:
-        version:
-          - "v2"
+      discovery_args:
+        metadata_match:
+          version:
+            - "v2"
 
 --- config
 location /v1/agent {
