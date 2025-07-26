@@ -116,7 +116,7 @@ function _M.nodes(service_name, discovery_args)
 
     local resp_list = all_services[service_name]
 
-    if discovery_args.metadata_match then
+    if discovery_args and discovery_args.metadata_match then
         resp_list = match_nodes_by_metadata(resp_list, discovery_args.metadata_match)
     end
 
@@ -548,7 +548,9 @@ function _M.connect(premature, consul_server, retry_delay)
                         goto CONTINUE
                     end
 
-                    local svc_address, svc_port, metadata = service.Address, service.Port, service.Meta
+                    local svc_address = service.Address
+                    local svc_port = service.Port
+                    local metadata = service.Meta
                     if type(metadata) ~= "table" then
                        metadata = nil
                     end
@@ -568,7 +570,7 @@ function _M.connect(premature, consul_server, retry_delay)
                         core.table.insert(nodes, {
                             host = svc_address,
                             port = tonumber(svc_port),
-                            weight = metadata and metadata.weight or default_weight,
+                            weight = metadata and tonumber(metadata.weight) or default_weight,
                             metadata = metadata
                         })
                         nodes_uniq[service_id] = true

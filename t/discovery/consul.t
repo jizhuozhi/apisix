@@ -800,8 +800,9 @@ routes:
       discovery_type: consul
       discovery_args:
         metadata_match:
-          version:
-            - "v2"
+          - key: version
+            value:
+              - "v2"
 
 --- config
 location /v1/agent {
