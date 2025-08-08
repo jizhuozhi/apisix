@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 local require = require
+local core = require("apisix.core")
 local ipairs = ipairs
 local pairs = pairs
 local discovery_utils = require("apisix.utils.discovery")
@@ -30,10 +31,9 @@ local function get_picker(type)
     return picker
 end
 
-local function insert_node_to_trie(root, keys, node, metadata_map)
+local function insert_node_to_trie(root, keys, k, v, metadata)
     local cur = root
     for _, key in ipairs(keys) do
-        local metadata = metadata_map[node.host .. ":" .. node.port]
         local value = metadata and metadata[key]
         if not value then
             return
@@ -43,7 +43,7 @@ local function insert_node_to_trie(root, keys, node, metadata_map)
         cur = cur.children[value]
     end
     cur.nodes = cur.nodes or {}
-    table.insert(cur.nodes, node)
+    cur.nodes[k] = v
 end
 
 local function build_picker_for_leaves(root, upstream, sub_picker)
@@ -68,8 +68,9 @@ local function build_subset_trees(all_nodes, upstream, metadata_map, sub_picker)
 
     for _, selector in ipairs(upstream.subset.subset_selectors or {}) do
         local root = {}
-        for _, node in ipairs(all_nodes) do
-            insert_node_to_trie(root, selector.keys, node, metadata_map)
+        for k, v in pairs(all_nodes) do
+            local metadata = metadata_map[k]
+            insert_node_to_trie(root, selector.keys, k, v, metadata)
         end
 
         build_picker_for_leaves(root, upstream, sub_picker)
@@ -97,7 +98,7 @@ local function get_leaf_picker(ctx, header_prefix, tree)
 end
 
 local function get_subset_picker(ctx, header_prefix, trees, fallback_picker)
-    for _, tree in ipairs(trees) do
+    for i, tree in ipairs(trees) do
         local subset_picker = get_leaf_picker(ctx, header_prefix, tree)
         if subset_picker then
             return subset_picker
@@ -110,13 +111,17 @@ function _M.new(up_nodes, upstream)
     local subset = upstream.subset or {}
     local sub_picker = get_picker(subset.type or "roundrobin")
 
+    local nodes = {}
     local metadata_map = {}
     for _, node in ipairs(upstream.nodes) do
         local key = node.host .. ":" .. node.port
-        metadata_map[key] = node.metadata
+        if up_nodes[key] then
+            table.insert(nodes, node)
+            metadata_map[key] = node.metadata
+        end
     end
 
-    local trees = build_subset_trees(up_nodes, upstream, sub_picker)
+    local trees = build_subset_trees(up_nodes, upstream, metadata_map, sub_picker)
 
     local fallback_picker
     local fallback_policy = subset.fallback_policy
@@ -124,9 +129,14 @@ function _M.new(up_nodes, upstream)
     if fallback_policy == "ANY_ENDPOINT" then
         fallback_picker = sub_picker.new(up_nodes, upstream)
     elseif fallback_policy == "DEFAULT_SUBSET" then
-        local default_nodes = discovery_utils.nodes_metadata_match(up_nodes, subset.default_subset)
-        if default_nodes and #default_nodes > 0 then
-            fallback_picker = sub_picker.new(default_nodes, upstream)
+        local matched_nodes = discovery_utils.nodes_metadata_match(nodes, subset.default_subset)
+        if matched_nodes and #matched_nodes > 0 then
+            local matched_up_nodes = {}
+            for _, node in ipairs(matched_nodes) do
+                local key = node.host .. ":" .. node.port
+                matched_up_nodes[key] = up_nodes[key]
+            end
+            fallback_picker = sub_picker.new(matched_up_nodes, upstream)
         end
     end
 
