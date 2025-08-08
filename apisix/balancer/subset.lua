@@ -30,10 +30,11 @@ local function get_picker(type)
     return picker
 end
 
-local function insert_node_to_trie(root, keys, node)
+local function insert_node_to_trie(root, keys, node, metadata_map)
     local cur = root
     for _, key in ipairs(keys) do
-        local value = node.metadata and node.metadata[key]
+        local metadata = metadata_map[node.host .. ":" .. node.port]
+        local value = metadata and metadata[key]
         if not value then
             return
         end
@@ -62,13 +63,13 @@ local function build_picker_for_leaves(root, upstream, sub_picker)
     end
 end
 
-local function build_subset_trees(all_nodes, upstream, sub_picker)
+local function build_subset_trees(all_nodes, upstream, metadata_map, sub_picker)
     local trees = {}
 
     for _, selector in ipairs(upstream.subset.subset_selectors or {}) do
         local root = {}
         for _, node in ipairs(all_nodes) do
-            insert_node_to_trie(root, selector.keys, node)
+            insert_node_to_trie(root, selector.keys, node, metadata_map)
         end
 
         build_picker_for_leaves(root, upstream, sub_picker)
@@ -108,6 +109,12 @@ end
 function _M.new(up_nodes, upstream)
     local subset = upstream.subset or {}
     local sub_picker = get_picker(subset.type or "roundrobin")
+
+    local metadata_map = {}
+    for _, node in ipairs(upstream.nodes) do
+        local key = node.host .. ":" .. node.port
+        metadata_map[key] = node.metadata
+    end
 
     local trees = build_subset_trees(up_nodes, upstream, sub_picker)
 
