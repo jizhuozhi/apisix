@@ -514,6 +514,57 @@ local upstream_schema = {
             maxLength = 256,
             minLength = 1
         },
+        subset = {
+            type = "object",
+            properties = {
+                fallback_policy = {
+                    type = "string",
+                    enum = {"NO_FALLBACK", "ANY_ENDPOINT", "DEFAULT_SUBSET"},
+                    default = "NO_FALLBACK",
+                    description = "Subset fallback policy"
+                },
+                default_subset = {
+                    type = "object",
+                    description = "Default subset metadata, key-values",
+                    additionalProperties = {
+                        type = "array",
+                        items = {
+                            description = "candidate metadata value",
+                            type = "string",
+                        },
+                        uniqueItems = true,
+                    }
+                },
+                subset_selectors = {
+                    type = "array",
+                    description = "Subset selectors, each contains keys",
+                    items = {
+                        type = "object",
+                        properties = {
+                            keys = {
+                                type = "array",
+                                items = { type = "string" },
+                                description = "Keys for subset selector"
+                            }
+                        },
+                        required = {"keys"},
+                        additionalProperties = false,
+                    },
+                    default = {}
+                },
+                header_prefix = {
+                    type = "string",
+                    default = "",
+                    description = "HTTP header prefix for subset matching"
+                },
+                type = {
+                    type = "string",
+                    default = "roundrobin",
+                    description = "Load balancing type for subsets"
+                }
+            },
+            additionalProperties = false,
+        }
     },
     oneOf = {
         {required = {"nodes"}},
